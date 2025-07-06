@@ -92,6 +92,7 @@ Desktop.ini
 
 # Specific files
 audio.mp3
+gemini_daily_summary_*.md
 
 # Backend environment file
 backend/.env
