@@ -29,7 +29,7 @@
 ### AI & Voice Services
 - **Conversational AI:** OpenAI GPT-4 or Anthropic Claude
 - **Voice Cloning:** ElevenLabs API
-- **Text-to-Speech:** ElevenLabs + Web Speech API (fallback)
+- **Text-to-Speech:** Google Cloud TTS (pre-generated audio files)
 - **Speech-to-Text:** Web Speech API + OpenAI Whisper (fallback)
 
 ### Infrastructure
@@ -165,7 +165,7 @@
 - [ ] Age-appropriate content switching
 
 **Week 4:**
-- [ ] Text-to-speech integration
+- [ ] Text-to-speech integration (using pre-generated audio files)
 - [ ] Audio controls (play, pause, speed)
 - [ ] Story navigation between chapters
 - [ ] Bookmark functionality

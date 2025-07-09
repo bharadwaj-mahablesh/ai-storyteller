@@ -5,7 +5,7 @@ This project aims to create an AI-powered storyteller application. It features a
 ## Features:
 
 *   **Story Display:** Presents stories from various epics (e.g., Panchatantra).
-*   **On-Demand Audio Generation:** Integrates with text-to-speech services (currently ElevenLabs) to generate audio for stories on user request.
+
 *   **Modular Architecture:** Separated frontend and backend components for better maintainability and scalability.
 
 ## Getting Started:
@@ -28,8 +28,7 @@ This project aims to create an AI-powered storyteller application. It features a
     ```bash
     cd backend
     npm install
-    # Create a .env file with your ElevenLabs API key:
-    # ELEVENLABS_API_KEY="YOUR_API_KEY_HERE"
+    
     npm start
     ```
 

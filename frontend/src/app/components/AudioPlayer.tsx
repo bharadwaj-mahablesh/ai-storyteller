@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+
+export interface AudioPlayerHandles {
+  play: () => void;
+  pause: () => void;
+}
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -9,15 +14,29 @@ interface AudioPlayerProps {
   onTimeUpdate?: (currentTime: number) => void; // New prop for time updates
 }
 
-const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, autoPlay = false, onEnded, onTimeUpdate }) => {
+const AudioPlayer = forwardRef<AudioPlayerHandles, AudioPlayerProps>(({ audioUrl, autoPlay = false, onEnded, onTimeUpdate }, ref) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
 
+  useImperativeHandle(ref, () => ({
+    play: () => {
+      if (audioRef.current) {
+        audioRef.current.play();
+        setIsPlaying(true);
+      }
+    },
+    pause: () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    },
+  }));
+
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.load();
       if (autoPlay) {
         audioRef.current.play().catch(e => console.error("Autoplay failed", e));
         setIsPlaying(true);
@@ -110,6 +129,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, autoPlay = false, o
       />
     </div>
   );
-};
+});
 
 export default AudioPlayer;
