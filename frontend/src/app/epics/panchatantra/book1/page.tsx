@@ -8,20 +8,26 @@ interface Preface {
   text: string;
 }
 
+interface WordTimestamp {
+  word: string;
+  start: number;
+  end: number;
+}
+
 interface Story {
   story_number: number;
   title: string;
   full_text: string;
-  age_groups: {
-    '3-7': {
-      summary: string;
-      moral: string;
-    };
-    '8-12': {
-      summary: string;
-      moral: string;
-    };
-  };
+  summary: string;
+  moral: string;
+  segments: {
+    segment_id: number;
+    segment_text: string;
+    pause_after: boolean;
+    guided_questions: { text: string; audio_path?: string; timestamps?: WordTimestamp[] }[];
+    audio_path?: string;
+    timestamps?: WordTimestamp[];
+  }[];
 }
 
 export default function PanchatantraBook1Page() {
@@ -33,9 +39,10 @@ export default function PanchatantraBook1Page() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
-
-  // Default voice ID for ElevenLabs (Adam)
-  const ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+  const [currentSegment, setCurrentSegment] = useState(0);
+  const [showQuestions, setShowQuestions] = useState(false);
+  const [highlightedWordIndex, setHighlightedWordIndex] = useState(-1);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   useEffect(() => {
     async function fetchData() {
@@ -61,41 +68,65 @@ export default function PanchatantraBook1Page() {
     fetchData();
   }, []);
 
-  const generateAudio = async (text: string) => {
-    setAudioLoading(true);
+  const handleStorySelect = (story: Story) => {
+    setSelectedStory(story);
+    setCurrentSegment(0);
+    setShowQuestions(false);
+    setAudioUrl(null);
     setAudioError(null);
-    setAudioUrl(null); // Clear previous audio
+    setHighlightedWordIndex(-1);
+    setCurrentQuestionIndex(0);
 
-    try {
-      const response = await fetch('http://localhost:3001/api/generate-audio', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate audio from ElevenLabs.');
-      }
-
-      // Create a Blob from the audio stream and then a URL
-      const audioBlob = await response.blob();
-      const url = URL.createObjectURL(audioBlob);
-      setAudioUrl(url);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setAudioError(err.message);
-      } else {
-        setAudioError('An unknown error occurred during audio generation.');
-      }
-    } finally {
-      setAudioLoading(false);
+    const firstSegment = story.segments[0];
+    if (firstSegment?.audio_path) {
+      setAudioUrl(`http://localhost:3001${firstSegment.audio_path}`);
+    } else {
+      setAudioError("Audio not available for this segment.");
     }
   };
 
-  
+  const handleNextSegment = () => {
+    if (selectedStory && currentSegment < selectedStory.segments.length - 1) {
+      const nextSegmentIndex = currentSegment + 1;
+      setCurrentSegment(nextSegmentIndex);
+      const nextSegment = selectedStory.segments[nextSegmentIndex];
+      
+      setShowQuestions(false);
+      setAudioUrl(null);
+      setAudioError(null);
+      setHighlightedWordIndex(-1);
+      setCurrentQuestionIndex(0);
+
+      if (nextSegment?.audio_path) {
+        setAudioUrl(`http://localhost:3001${nextSegment.audio_path}`);
+      } else {
+        setAudioError("Audio not available for this segment.");
+      }
+    } else if (selectedStory && currentSegment === selectedStory.segments.length - 1) {
+      setSelectedStory(null);
+    }
+  };
+
+  const handleAudioTimeUpdate = (currentTime: number) => {
+    if (currentTime === undefined) return;
+
+    const currentSegmentData = selectedStory?.segments[currentSegment];
+    if (currentSegmentData?.timestamps) {
+      const activeWordIndex = currentSegmentData.timestamps.findIndex(
+        (ts) => currentTime >= ts.start && currentTime < ts.end
+      );
+      setHighlightedWordIndex(activeWordIndex);
+    }
+  };
+
+  const handleAudioEnd = () => {
+    setHighlightedWordIndex(-1);
+    if (selectedStory?.segments[currentSegment]?.pause_after) {
+      setShowQuestions(true);
+    } else {
+      handleNextSegment();
+    }
+  };
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -122,12 +153,12 @@ export default function PanchatantraBook1Page() {
               <div
                 key={story.story_number}
                 className="border rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow cursor-pointer h-64 flex flex-col justify-between bg-gradient-to-br from-blue-50 to-purple-50 relative overflow-hidden"
-                onClick={() => setSelectedStory(story)}
+                onClick={() => handleStorySelect(story)}
               >
                 <div className="flex-1 relative overflow-hidden">
                   <h3 className="text-2xl font-semibold mb-2">{story.title}</h3>
                   <div className="relative h-32 overflow-hidden">
-                    <p className="text-gray-700 text-base whitespace-pre-line mb-4 h-full overflow-hidden" style={{ WebkitMaskImage: 'linear-gradient(180deg, #000 60%, transparent 100%)', maskImage: 'linear-gradient(180deg, #000 60%, transparent 100%)' }}>{story.full_text}</p>
+                    <p className="text-gray-700 text-base whitespace-pre-line mb-4 h-full overflow-hidden" style={{ WebkitMaskImage: 'linear-gradient(180deg, #000 60%, transparent 100%)', maskImage: 'linear-gradient(180deg, #000 60%, transparent 100%)' }}>{story.segments.map(s => s.segment_text).join(' ')}</p>
                   </div>
                 </div>
                 <p className="text-sm text-blue-800 font-semibold mt-auto">Tap to read full story</p>
@@ -145,7 +176,7 @@ export default function PanchatantraBook1Page() {
               className="absolute top-4 right-4 text-2xl text-gray-400 hover:text-gray-700"
               onClick={() => {
                 setSelectedStory(null);
-                setAudioUrl(null); // Clear audio when modal closes
+                setAudioUrl(null);
                 setAudioError(null);
               }}
               aria-label="Close"
@@ -153,27 +184,81 @@ export default function PanchatantraBook1Page() {
               &times;
             </button>
             <h3 className="text-3xl font-bold mb-4">{selectedStory.title}</h3>
-            <p className="text-gray-800 whitespace-pre-line mb-6">{selectedStory.full_text}</p>
             <p className="text-lg font-semibold text-blue-700 mb-2">Moral:</p>
-            <p className="text-base text-blue-900">{selectedStory.age_groups['8-12'].moral}</p>
+            <p className="text-base text-blue-900 mb-6">{selectedStory.moral}</p>
+            <div className="text-gray-800 whitespace-pre-line mb-6 text-lg leading-relaxed">
+              {selectedStory.segments.map((segment, segmentIndex) => (
+                <span key={segmentIndex}>
+                  {segment.timestamps ? (
+                    segment.timestamps.map((wordData, wordIndex) => {
+                      const isRead = segmentIndex < currentSegment || (segmentIndex === currentSegment && wordIndex < highlightedWordIndex);
+                      return (
+                        <span
+                          key={wordIndex}
+                          className={`word ${isRead ? 'read' : ''}`}
+                        >
+                          {wordData.word + ' '}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    <span>{segment.segment_text}</span>
+                  )}
+                </span>
+              ))}
+            </div>
 
-            {/* Audio Generation and Player Section */}
+            {/* Audio Player Section */}
             <div className="mt-6 flex flex-col items-center">
-              <button
-                onClick={() => selectedStory && generateAudio(selectedStory.full_text)}
-                disabled={audioLoading}
-                className="mb-4 px-6 py-3 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {audioLoading ? 'Generating Audio...' : 'Generate Audio'}
-              </button>
               {audioError && <p className="text-center text-red-600">Audio Error: {audioError}</p>}
               {audioUrl && !audioLoading && !audioError && (
-                <AudioPlayer audioUrl={audioUrl} />
+                <AudioPlayer
+                  audioUrl={audioUrl}
+                  onEnded={handleAudioEnd}
+                  onTimeUpdate={handleAudioTimeUpdate}
+                  autoPlay={true}
+                />
               )}
             </div>
+
+            {showQuestions && selectedStory.segments[currentSegment].guided_questions.length > 0 && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative">
+                  <h4 className="font-bold text-xl mb-4 text-center">Think about it...</h4>
+                  <p className="text-gray-700 text-center mb-4">
+                    {selectedStory.segments[currentSegment].guided_questions[currentQuestionIndex].text}
+                  </p>
+                  {selectedStory.segments[currentSegment].guided_questions[currentQuestionIndex].audio_path && (
+                    <AudioPlayer
+                      audioUrl={`http://localhost:3001${selectedStory.segments[currentSegment].guided_questions[currentQuestionIndex].audio_path}`}
+                      autoPlay={true}
+                      onEnded={() => {}}
+                    />
+                  )}
+                  <div className="flex justify-center mt-6">
+                    {currentQuestionIndex < selectedStory.segments[currentSegment].guided_questions.length - 1 ? (
+                      <button
+                        onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      >
+                        Next Question
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleNextSegment}
+                        className="px-6 py-3 bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                      >
+                        Continue Story
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
     </div>
   );
 }
+

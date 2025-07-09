@@ -4,9 +4,12 @@ import React, { useRef, useState, useEffect } from 'react';
 
 interface AudioPlayerProps {
   audioUrl: string;
+  autoPlay?: boolean;
+  onEnded?: () => void;
+  onTimeUpdate?: (currentTime: number) => void; // New prop for time updates
 }
 
-const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
+const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, autoPlay = false, onEnded, onTimeUpdate }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -14,11 +17,16 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
 
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.load(); // Reload audio when URL changes
-      setIsPlaying(false);
+      audioRef.current.load();
+      if (autoPlay) {
+        audioRef.current.play().catch(e => console.error("Autoplay failed", e));
+        setIsPlaying(true);
+      } else {
+        setIsPlaying(false);
+      }
       setCurrentTime(0);
     }
-  }, [audioUrl]);
+  }, [audioUrl, autoPlay]);
 
   const togglePlayPause = () => {
     if (audioRef.current) {
@@ -34,6 +42,9 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       setCurrentTime(audioRef.current.currentTime);
+      if (onTimeUpdate) {
+        onTimeUpdate(audioRef.current.currentTime);
+      }
     }
   };
 
@@ -56,7 +67,12 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl }) => {
         src={audioUrl}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          if (onEnded) {
+            onEnded();
+          }
+        }}
         preload="auto"
       />
       <div className="controls flex items-center space-x-4 mb-2">

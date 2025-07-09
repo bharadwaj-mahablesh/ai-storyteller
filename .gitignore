@@ -100,3 +100,7 @@ backend/.env
 # IDE specific files
 .vscode/
 .idea/
+
+# Custom additions
+backend/public/
+gcp-credentials/
